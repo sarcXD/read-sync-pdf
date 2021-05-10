@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import "./App.css";
+import { GetData } from "../services/api.service.js"; // curly braces since no default export in file
+
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
 
@@ -10,11 +11,9 @@ let containerStyle = {
   height: "100%",
 };
 
-function App() {
+function Viewer() {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
-  const [textX, setTextX] = useState(0);
-  const [textY, setTextY] = useState(0);
 
   // The workerSrc property shall be specified.
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -30,11 +29,16 @@ function App() {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.sandbox.min.js";
 
   const loadPdf = async () => {
-    const resp = await getData("http://localhost:8000/pdf/");
+    const resp = await GetData("http://localhost:8000/pdf/");
     renderInitialPdf(resp);
   };
 
-  const handlePageInit = (eventBus, pdfViewer, SEARCH_FOR) => {
+  const handlePageInit = (
+    eventBus,
+    pdfViewer,
+    pdfFindController,
+    SEARCH_FOR
+  ) => {
     eventBus.on("pagesinit", function () {
       // We can use pdfViewer now, e.g. let's change default scale.
       pdfViewer.currentScaleValue = "page-width";
@@ -87,7 +91,7 @@ function App() {
     pdfLinkService.setViewer(pdfViewer);
     pdfScriptingManager.setViewer(pdfViewer);
 
-    handlePageInit(eventBus, pdfViewer, SEARCH_FOR);
+    handlePageInit(eventBus, pdfViewer, pdfFindController, SEARCH_FOR);
     // Loading document.
     const loadingTask = pdfjsLib.getDocument({
       data: rawPDFUrl.data,
@@ -98,7 +102,7 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <div>
       <div
         id="#viewerContainer"
         ref={containerRef}
@@ -113,4 +117,4 @@ function App() {
   );
 }
 
-export default App;
+export default Viewer;
