@@ -2,6 +2,14 @@ const SEARCH_FOR = ""; // try 'Mozilla';
 
 const container = document.getElementById("viewerContainer");
 
+const pdfjsLib = window.pdfjsLib;
+const pdfjsViewer = window.pdfjsViewer;
+const pdfScriptingManager = window.pdfScriptingManager;
+// Some PDFs need external cmaps.
+//
+const CMAP_URL = "../../node_modules/pdfjs-dist/cmaps/";
+const CMAP_PACKED = true;
+
 const eventBus = new pdfjsViewer.EventBus();
 
 // (Optionally) enable hyperlinks within PDF files.
@@ -36,7 +44,6 @@ eventBus.on("pagesinit", function () {
 
 // Loading document.
 const loadingTask = pdfjsLib.getDocument({
-  url: DEFAULT_URL,
   cMapUrl: CMAP_URL,
   cMapPacked: CMAP_PACKED,
 });
