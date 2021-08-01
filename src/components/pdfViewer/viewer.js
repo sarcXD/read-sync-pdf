@@ -1,79 +1,75 @@
-import { useRef, useState } from "react";
-import { GetData } from "../services/api.service.js"; // curly braces since no default export in file
-import "./viewer.css";
-import { storage } from "./../../config";
+import { useRef, useState, useEffect } from 'react';
+import { PostData } from '../services/api.service.js'; // curly braces since no default export in file
+import './viewer.css';
+import { storage } from './../../config';
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
 
 let containerStyle = {
-  overflow: "auto",
-  position: "absolute",
-  width: "100%",
-  height: "100%",
+  overflow: 'auto',
+  position: 'absolute',
+  width: '100%',
+  height: '100%',
 };
-
-// const pdfVariables = {
-// eventBus: null,
-// pdfDocument: null,
-// pdfViewer: null,
-// pdfLinkService: null,
-// pdfFindController: null,
-// pdfScriptingManager: null,
-// }
 
 function Viewer() {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const [pdfVariables, setPdfVariables] = useState({});
-  const [pgNum, setPgNum] = useState(undefined);
+  const [pgNum, setPgNum] = useState('');
   const [openFile, setOpenFile] = useState(null);
+  const [blobData, setblobData] = useState('');
 
   // The workerSrc property shall be specified.
   pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.worker.min.js";
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.worker.min.js';
 
   // Some PDFs need external cmaps.
   //
-  const CMAP_URL = "../../node_modules/pdfjs-dist/cmaps/";
+  const CMAP_URL = '../../node_modules/pdfjs-dist/cmaps/';
   const CMAP_PACKED = true;
 
   // sandbox link
   const SANDBOX_BUNDLE_SRC =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.sandbox.min.js";
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.sandbox.min.js';
 
   const loadPdf = async () => {
-    const resp = await GetData("http://localhost:8000/pdf/");
-    renderInitialPdf(resp);
+    const url = await downloadFileFromFB();
+    if (url) {
+      console.log('URL', url);
+      const resp = await PostData('http://localhost:8000/pdf', { dldUrl: url });
+      renderInitialPdf({data: atob(resp)});
+    }
   };
 
-  const handlePageInit = (SEARCH_FOR) => {
-    pdfVariables.eventBus.on("pagesinit", function () {
+  const handlePageInit = (SEARCH_FOR, tempStateVar) => {
+    tempStateVar.eventBus.on('pagesinit', function () {
       // We can use pdfViewer now, e.g. let's change default scale.
-      pdfVariables.pdfViewer.currentScaleValue = "page-width";
-      pdfVariables.pdfViewer.currentPageNumber = 5;
+
+      tempStateVar.pdfViewer.currentScaleValue = 'page-width';
       // We can try searching for things.
       if (SEARCH_FOR) {
-        pdfVariables.pdfFindController.executeCommand("find", {
+        tempStateVar.pdfFindController.executeCommand('find', {
           query: SEARCH_FOR,
         });
       }
     });
   };
 
-  const handleDocLoad = async (loadingTask) => {
+  const handleDocLoad = async (loadingTask, tempStateVar) => {
     const pdfDocument = await loadingTask.promise;
     // Document loaded, specifying document for the viewer and
     // the (optional) linkService.
-    pdfVariables.pdfViewer.setDocument(pdfDocument);
-    pdfVariables.pdfLinkService.setDocument(pdfDocument, null);
-    pdfVariables.pdfDocument = pdfDocument;
+    tempStateVar.pdfViewer.setDocument(pdfDocument);
+    tempStateVar.pdfLinkService.setDocument(pdfDocument, null);
+    tempStateVar.pdfDocument = pdfDocument;
   };
 
   const renderInitialPdf = async (rawPDFUrl) => {
     if (containerRef == null || containerRef.current == null) {
       return;
     }
-    const SEARCH_FOR = "starters"; // try 'Mozilla';
+    const SEARCH_FOR = 'starters'; // try 'Mozilla';
     const container = containerRef.current;
     const eventBus = new pdfjsViewer.EventBus();
     // (Optionally) enable hyperlinks within PDF files.
@@ -103,13 +99,14 @@ function Viewer() {
     pdfLinkService.setViewer(pdfViewer);
     pdfScriptingManager.setViewer(pdfViewer);
 
-    pdfVariables.eventBus = eventBus;
-    pdfVariables.pdfViewer = pdfViewer;
-    pdfVariables.pdfScriptingManager = pdfScriptingManager;
-    pdfVariables.pdfLinkService = pdfLinkService;
-    pdfVariables.pdfFindController = pdfFindController;
+    const tempStateVar = {};
+    tempStateVar.eventBus = eventBus;
+    tempStateVar.pdfViewer = pdfViewer;
+    tempStateVar.pdfScriptingManager = pdfScriptingManager;
+    tempStateVar.pdfLinkService = pdfLinkService;
+    tempStateVar.pdfFindController = pdfFindController;
 
-    handlePageInit(SEARCH_FOR);
+    handlePageInit(SEARCH_FOR, tempStateVar);
     // Loading document.
     const loadingTask = pdfjsLib.getDocument({
       data: rawPDFUrl.data,
@@ -117,41 +114,51 @@ function Viewer() {
       cMapPacked: CMAP_PACKED,
     });
 
-    await handleDocLoad(loadingTask);
+    await handleDocLoad(loadingTask, tempStateVar);
+
+    // all variables assigned, set tempStateVar to pdfVariables to update UI
+    setPdfVariables(tempStateVar);
   };
 
   const gotoPage = ($ev) => {
-    console.log($ev);
     if ($ev.keyCode === 13) {
       $ev.preventDefault();
-      console.log(pgNum);
       pdfVariables.pdfViewer.currentPageNumber = pgNum;
     }
   };
 
   const setPage = ($ev) => {
-    console.log(2);
     const intVal = parseInt($ev.target.value);
     setPgNum(intVal);
   };
 
   const uploadToFirebase = (file) => {
     if (file) {
-      console.log(file)
       const storageRef = storage.ref();
       const pdfRef = storageRef.child(file.name);
       pdfRef.put(file).then(() => {
-        alert("File uploaded successfully");
+        alert('File uploaded successfully');
       });
     }
   };
 
+  const downloadFileFromFB = async () => {
+    const storageRef = storage.ref();
+    const refs = await storageRef.listAll();
+    const url = await refs.items[0].getDownloadURL();
+    // downloadBlobFile(url)
+    return url;
+  };
+
   const uploadAndOpenPdf = ($ev) => {
-    const file = $ev.target.files[0];
+    const file = $ev.target.files[1];
     setOpenFile(file);
     uploadToFirebase(file);
-    // downloadAndOpenFile();
   };
+
+  useEffect(() => {
+    loadPdf();
+  }, []);
 
   return (
     <div>

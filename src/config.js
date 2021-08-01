@@ -1,7 +1,6 @@
 import {firebase} from "@firebase/app";
 import "@firebase/storage";
 
-console.log(process.env)
 const app = firebase.initializeApp({
     apiKey: "AIzaSyC28NIuL_06bJDdK2454mRYN4d5fyqgn_k",
     authDomain: "readsyncpdf.firebaseapp.com",
