@@ -1,6 +1,6 @@
 import {firebase} from "@firebase/app";
 import "@firebase/storage";
-
+import "@firebase/auth";
 const app = firebase.initializeApp({
     apiKey: "AIzaSyC28NIuL_06bJDdK2454mRYN4d5fyqgn_k",
     authDomain: "readsyncpdf.firebaseapp.com",
@@ -12,5 +12,7 @@ const app = firebase.initializeApp({
 })
 
 export const storage = firebase.storage();
+export const firebaseRef = firebase;
+export const auth = firebase.auth;
 
 export default app;
