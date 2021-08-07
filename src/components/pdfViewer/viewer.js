@@ -13,14 +13,28 @@ let containerStyle = {
   height: "100%",
 };
 
+function isEmpty(obj) {
+  for(let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function Viewer() {
+  // specific to pdf.js viewer
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const [pdfVariables, setPdfVariables] = useState({});
   const [pgNum, setPgNum] = useState("");
+  // specific to app state
+  const [pdfLoaded, setPdfLoaded] = useState(false);
   const [openFile, setOpenFile] = useState(null);
   const [signedIn, setSignedIn] = useState(false);
-  const [userState, setUserState] = useState({});
+  const [pdfState, setPdfState] = useState({});
+  let userState = {};
+  let pdfPath = "";
 
   // The workerSrc property shall be specified.
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -36,20 +50,63 @@ function Viewer() {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.sandbox.min.js";
 
   const loadPdf = async () => {
-    // const file = await downloadFileFromFB();
     const url = await downloadFileFromFB();
     if (url) {
-      // console.log('URL', url);
-      // const resp = await PostData('http://localhost:8000/pdf', { dldUrl: url });
-      // console.log(resp)
+      console.log("rendering url", url);
       renderInitialPdf(url);
+    } else {
+      alert("Cant download file, Please report");
     }
+    // const resp = await PostData('http://localhost:8000/pdf', { dldUrl: url });
+    // console.log(resp)
   };
+
+  const createPdfEntry = async () => {
+    const pdfDetails = {
+      pdfLink: pdfPath,
+      email: userState.email,
+    };
+    const status = await PostData("http://localhost:8000/pdf/new_pdf", {
+      pdfDetails: pdfDetails,
+    });
+    console.log("Pdf Entry Status",status);
+  };
+
+  const createOrUpdateUserRecord = async () => {
+    const userDetails = {
+      email: userState.email,
+      displayName: userState.displayName,
+    };
+    const status = await PostData("http://localhost:8000/pdf/create_user", {
+      userDetails: userDetails,
+    });
+    console.log("User created status",status);
+  }
+
+  const getOpenedPdf = async () => {
+    if (userState) {
+      /**
+       * Fetched State:
+       * currPage Page user left reading on
+       * pdfLink Path of pdf in fb storage
+       */
+      const fetchedState = await PostData("http://localhost:8000/pdf/resume", {email: userState.email})
+      setPdfState(fetchedState);
+      console.log("Fetched state", fetchedState);
+      let resume = false;
+      if (!isEmpty(fetchedState)) {
+        resume = true;
+        pdfPath = fetchedState?.pdfLink;
+      }
+      return resume;
+    } else {
+      console.log("ERROR","No User State object exists, cant fetch details");
+    }
+  }
 
   const handlePageInit = (SEARCH_FOR, tempStateVar) => {
     tempStateVar.eventBus.on("pagesinit", function () {
       // We can use pdfViewer now, e.g. let's change default scale.
-
       tempStateVar.pdfViewer.currentScaleValue = "page-width";
       // We can try searching for things.
       if (SEARCH_FOR) {
@@ -73,7 +130,7 @@ function Viewer() {
     if (containerRef == null || containerRef.current == null) {
       return;
     }
-    const SEARCH_FOR = "starters"; // try 'Mozilla';
+    const SEARCH_FOR = "starters";
     const container = containerRef.current;
     const eventBus = new pdfjsViewer.EventBus();
     // (Optionally) enable hyperlinks within PDF files.
@@ -122,6 +179,7 @@ function Viewer() {
 
     // all variables assigned, set tempStateVar to pdfVariables to update UI
     setPdfVariables(tempStateVar);
+    setPdfLoaded(true);
   };
 
   const gotoPage = ($ev) => {
@@ -136,27 +194,30 @@ function Viewer() {
     setPgNum(intVal);
   };
 
-  const uploadToFirebase = (file) => {
+  const uploadToFirebaseAndOpen = (file) => {
     if (file) {
       const storageRef = storage.ref();
-      const pdfRef = storageRef.child(file.name);
-      pdfRef.put(file).then(() => {
+      const filePath = userState.email + "/" + file.name;
+      pdfPath = filePath;
+      const pdfRef = storageRef.child(filePath);
+      pdfRef.put(file).then((snapshot) => {
         alert("File uploaded successfully");
+        loadPdf();
       });
     }
   };
 
   const downloadFileFromFB = async () => {
     const storageRef = storage.ref();
-    const refs = await storageRef.listAll();
-    const url = await refs.items[0].getDownloadURL();
+    const url = await storageRef.child(pdfPath).getDownloadURL();
     return url;
   };
 
-  const uploadAndOpenPdf = ($ev) => {
-    const file = $ev.target.files[1];
+  const uploadAndOpenPdf = async ($ev) => {
+    const file = $ev.target.files[0];
     setOpenFile(file);
-    uploadToFirebase(file);
+    uploadToFirebaseAndOpen(file);
+    createPdfEntry();
   };
 
   const signInGoogle = () => {
@@ -164,14 +225,17 @@ function Viewer() {
     firebaseRef
       .auth()
       .signInWithPopup(provider)
-      .then((result) => {
-        var credential = result.credential;
+      .then(async (result) => {
+        //@mark shift to using tokens for authentication after alpha build
+        //    var credential = result.credential;
         // This gives you a Google Access Token. You can use it to access the Google API.
-        var token = credential.accessToken;
+        //    var token = credential.accessToken;
         // The signed-in user info.
-        var user = result.user;
+        userState = result.user;
         setSignedIn(true);
-        // ...
+        await createOrUpdateUserRecord();
+        const resume = await getOpenedPdf();
+        if (resume) loadPdf();
       })
       .catch((error) => {
         // Handle Errors here.
@@ -185,41 +249,59 @@ function Viewer() {
   };
 
   const logoutGoogle = () => {
-    firebaseRef.auth().signOut().then(() => {
-      // saveUserState()
-      setSignedIn(false);
-    }).catch((error) => {
-      // Error occurred
-    })
-  }
+    firebaseRef
+      .auth()
+      .signOut()
+      .then(() => {
+        userState = {};
+        setSignedIn(false);
+      })
+      .catch((error) => {
+        // Error occurred
+      });
+  };
+
+  /**
+   * Save user variables
+   * uid, email, displayName
+   */
+  const saveUserState = (user) => {
+    userState = {
+      id: user?.uid,
+      email: user?.email,
+      name: user?.displayName,
+    };
+  };
 
   // Performed when user logs in to the page
   // Performed when user logs out
   const authCheck = () => {
-    firebaseRef.auth().onAuthStateChanged((user)=> {
+    firebaseRef.auth().onAuthStateChanged((user) => {
       if (user) {
-        const uid = user.uid;
         setSignedIn(true);
+        saveUserState(user);
       } else {
         setSignedIn(false);
       }
-    })
-  }
+    });
+  };
 
   useEffect(() => {
     authCheck();
-    loadPdf();
+    // fetchStateAndLoadPdf()
   }, []);
 
   return (
     <div>
-      <div
-        id="#viewerContainer"
-        ref={containerRef}
-        style={{ ...containerStyle }}
-      >
-        <div id="#viewer" className="pdfViewer" ref={viewerRef} />
-      </div>
+      {signedIn ? (
+        <div
+          id="#viewerContainer"
+          ref={containerRef}
+          style={{ ...containerStyle }}
+        >
+          <div id="#viewer" className="pdfViewer" ref={viewerRef} />
+        </div>
+      ) : null}
       {signedIn ? (
         <div className="toolbar-ctn">
           <div className="start-ctn">
@@ -230,23 +312,24 @@ function Viewer() {
               onChange={uploadAndOpenPdf}
             />
           </div>
-          <div className="mid-ctn">
-            <button onClick={loadPdf} className="toolbar-btn">
-              Load PDF from backend
-            </button>
-            <input
-              type="number"
-              value={pgNum}
-              onChange={setPage}
-              onKeyDown={gotoPage}
-              className="toolbar-input"
-            />
-            <div className="pg-text">of</div>
-            <div id="total-pages">{pdfVariables?.pdfDocument?.numPages}</div>
-          </div>
+          {pdfLoaded ? (
+            <div className="mid-ctn">
+              <input
+                type="number"
+                value={pgNum}
+                onChange={setPage}
+                onKeyDown={gotoPage}
+                className="toolbar-input"
+              />
+              <div className="pg-text">of</div>
+              <div id="total-pages">{pdfVariables?.pdfDocument?.numPages}</div>
+            </div>
+          ) : null}
           <div className="end-ctn">
-            <button>Save</button>
-            <button onClick={logoutGoogle} className="logout-btn">Logout</button>
+            {/* <button>Save</button> */}
+            <button onClick={logoutGoogle} className="logout-btn">
+              Logout
+            </button>
           </div>
         </div>
       ) : (
