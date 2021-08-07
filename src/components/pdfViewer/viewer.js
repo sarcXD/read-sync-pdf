@@ -33,6 +33,7 @@ function Viewer() {
   const [openFile, setOpenFile] = useState(null);
   const [signedIn, setSignedIn] = useState(false);
   const [pdfState, setPdfState] = useState({});
+  const [userInfo, setUserInfo] = useState({});
   let userState = {};
   let pdfPath = "";
 
@@ -272,36 +273,34 @@ function Viewer() {
     }
   };
 
-  const initPdfRendering = async (user) => {
-    saveUserState(user);
-    setSignedIn(true);
+  const initPdfRendering = async () => {
+    saveUserState(userInfo);
     await createOrUpdateUserRecord();
     const resume = await getOpenedPdf();
     if (resume) loadPdf();
+    setSignedIn(true);
   };
 
-  const signInGoogle = () => {
+  const signInGoogle = async () => {
     const provider = new firebaseRef.auth.GoogleAuthProvider();
-    firebaseRef
-      .auth()
-      .signInWithPopup(provider)
-      .then((result) => {
-        //@mark shift to using tokens for authentication after alpha build
-        //    var credential = result.credential;
-        // This gives you a Google Access Token. You can use it to access the Google API.
-        //    var token = credential.accessToken;
-        // The signed-in user info.
-        initPdfRendering(result.user);
-      })
-      .catch((error) => {
-        // Handle Errors here.
-        var errorCode = error.code;
-        var errorMessage = error.message;
-        // The email of the user's account used.
-        var email = error.email;
-        // The firebase.auth.AuthCredential type that was used.
-        var credential = error.credential;
-      });
+    const authRef = await firebaseRef.auth();
+    const result = await authRef.signInWithPopup(provider);
+      //@mark shift to using tokens for authentication after alpha build
+      //    var credential = result.credential;
+      // This gives you a Google Access Token. You can use it to access the Google API.
+      //    var token = credential.accessToken;
+      // The signed-in user info.
+      setUserInfo(result.user);
+      //@mark TODO implement error catching with awaits
+      // .catch((error) => {
+        //   // Handle Errors here.
+        //   var errorCode = error.code;
+        //   var errorMessage = error.message;
+        //   // The email of the user's account used.
+        //   var email = error.email;
+        //   // The firebase.auth.AuthCredential type that was used.
+        //   var credential = error.credential;
+        // });
   };
 
   const logoutGoogle = () => {
@@ -320,9 +319,9 @@ function Viewer() {
   // Performed when user logs in to the page
   // Performed when user logs out
   const authCheck = () => {
-    firebaseRef.auth().onAuthStateChanged(async (user) => {
+    firebaseRef.auth().onAuthStateChanged((user) => {
       if (user) {
-        initPdfRendering(user);
+        setUserInfo(user);
       } else {
         setSignedIn(false);
       }
@@ -330,10 +329,13 @@ function Viewer() {
   };
 
   useEffect(() => {
-    console.log("aC");
     authCheck();
     // fetchStateAndLoadPdf()
   }, []);
+
+  useEffect(() => {
+    initPdfRendering()
+  },[userInfo])
 
   return (
     <div>
