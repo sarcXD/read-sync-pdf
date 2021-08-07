@@ -14,7 +14,7 @@ let containerStyle = {
 };
 
 function isEmpty(obj) {
-  for(let key in obj) {
+  for (let key in obj) {
     if (obj.hasOwnProperty(key)) {
       return false;
     }
@@ -69,7 +69,21 @@ function Viewer() {
     const status = await PostData("http://localhost:8000/pdf/new_pdf", {
       pdfDetails: pdfDetails,
     });
-    console.log("Pdf Entry Status",status);
+    console.log("Pdf Entry Status", status);
+  };
+
+  const updatePdfEntry = async () => {
+    const pdfDetails = {
+      pdfLink: pdfPath,
+      email: userState.email,
+    };
+    const status = await PostData(
+      "http://localhost:8000/pdf/update_pdf_entry",
+      {
+        pdfDetails: pdfDetails,
+      }
+    );
+    console.log("Pdf Update Entry Status", status);
   };
 
   const createOrUpdateUserRecord = async () => {
@@ -80,8 +94,8 @@ function Viewer() {
     const status = await PostData("http://localhost:8000/pdf/create_user", {
       userDetails: userDetails,
     });
-    console.log("User created status",status);
-  }
+    console.log("User created status", status);
+  };
 
   const getOpenedPdf = async () => {
     if (userState) {
@@ -90,7 +104,9 @@ function Viewer() {
        * currPage Page user left reading on
        * pdfLink Path of pdf in fb storage
        */
-      const fetchedState = await PostData("http://localhost:8000/pdf/resume", {email: userState.email})
+      const fetchedState = await PostData("http://localhost:8000/pdf/resume", {
+        email: userState.email,
+      });
       setPdfState(fetchedState);
       console.log("Fetched state", fetchedState);
       let resume = false;
@@ -100,9 +116,21 @@ function Viewer() {
       }
       return resume;
     } else {
-      console.log("ERROR","No User State object exists, cant fetch details");
+      console.log("ERROR", "No User State object exists, cant fetch details");
     }
-  }
+  };
+
+  /**
+   * Save user variables
+   * uid, email, displayName
+   */
+   const saveUserState = (user) => {
+    userState = {
+      id: user?.uid,
+      email: user?.email,
+      name: user?.displayName,
+    };
+  };
 
   const handlePageInit = (SEARCH_FOR, tempStateVar) => {
     tempStateVar.eventBus.on("pagesinit", function () {
@@ -194,6 +222,18 @@ function Viewer() {
     setPgNum(intVal);
   };
 
+  const removePreviousPdf = (prevFilePath) => {
+    if (prevFilePath) {
+      const storageRef = storage.ref();
+      const pdfRef = storageRef.child(prevFilePath);
+      pdfRef.delete().then(() => {
+        console.log("Pdf Deletion", "Pdf deleted successfully");
+      });
+    } else {
+      console.log("No previous pdf path is in memory or db");
+    }
+  };
+
   const uploadToFirebaseAndOpen = (file) => {
     if (file) {
       const storageRef = storage.ref();
@@ -215,9 +255,29 @@ function Viewer() {
 
   const uploadAndOpenPdf = async ($ev) => {
     const file = $ev.target.files[0];
-    setOpenFile(file);
+    console.log(file);
+    return;
+    // @mark IMPORTANT
+    // At the start and for free versions, user is limited to just 1 pdf
+    // If user needs to open new pdf:
+    // previous pdf should be deleted
+    // Their entry in the backend should be updated
+    const updatePdf = pdfPath.length? true: false;
+    removePreviousPdf(pdfPath);
     uploadToFirebaseAndOpen(file);
-    createPdfEntry();
+    if (updatePdf) {
+      updatePdfEntry();
+    } else {
+      createPdfEntry();
+    }
+  };
+
+  const initPdfRendering = async (user) => {
+    saveUserState(user);
+    setSignedIn(true);
+    await createOrUpdateUserRecord();
+    const resume = await getOpenedPdf();
+    if (resume) loadPdf();
   };
 
   const signInGoogle = () => {
@@ -225,17 +285,13 @@ function Viewer() {
     firebaseRef
       .auth()
       .signInWithPopup(provider)
-      .then(async (result) => {
+      .then((result) => {
         //@mark shift to using tokens for authentication after alpha build
         //    var credential = result.credential;
         // This gives you a Google Access Token. You can use it to access the Google API.
         //    var token = credential.accessToken;
         // The signed-in user info.
-        userState = result.user;
-        setSignedIn(true);
-        await createOrUpdateUserRecord();
-        const resume = await getOpenedPdf();
-        if (resume) loadPdf();
+        initPdfRendering(result.user);
       })
       .catch((error) => {
         // Handle Errors here.
@@ -261,25 +317,12 @@ function Viewer() {
       });
   };
 
-  /**
-   * Save user variables
-   * uid, email, displayName
-   */
-  const saveUserState = (user) => {
-    userState = {
-      id: user?.uid,
-      email: user?.email,
-      name: user?.displayName,
-    };
-  };
-
   // Performed when user logs in to the page
   // Performed when user logs out
   const authCheck = () => {
-    firebaseRef.auth().onAuthStateChanged((user) => {
+    firebaseRef.auth().onAuthStateChanged(async (user) => {
       if (user) {
-        setSignedIn(true);
-        saveUserState(user);
+        initPdfRendering(user);
       } else {
         setSignedIn(false);
       }
@@ -287,6 +330,7 @@ function Viewer() {
   };
 
   useEffect(() => {
+    console.log("aC");
     authCheck();
     // fetchStateAndLoadPdf()
   }, []);
