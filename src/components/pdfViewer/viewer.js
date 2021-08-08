@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect } from "react";
 import { PostData } from "../services/api.service.js"; // curly braces since no default export in file
 import "./viewer.css";
-import { storage, firebaseRef } from "./../../config";
-
+import { storage, firebaseRef } from "../../configs/fbConfig";
+import {configVars} from "../../configs/envConfig";
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
 
@@ -70,7 +70,7 @@ function Viewer() {
       pdfLink: pdfPath.current,
       email: userState.current?.email,
     };
-    const status = await PostData("http://localhost:8000/pdf/new_pdf", {
+    const status = await PostData(configVars.dbUrl+"pdf/new_pdf", {
       pdfDetails: pdfDetails,
     });
     console.log("Pdf Entry Status", status);
@@ -82,7 +82,7 @@ function Viewer() {
       email: userState.current?.email,
     };
     const status = await PostData(
-      "http://localhost:8000/pdf/update_pdf_entry",
+      configVars.dbUrl+"pdf/update_pdf_entry",
       {
         pdfDetails: pdfDetails,
       }
@@ -95,7 +95,7 @@ function Viewer() {
       email: userState.current?.email,
       displayName: userState.current?.displayName,
     };
-    const status = await PostData("http://localhost:8000/pdf/create_user", {
+    const status = await PostData(configVars.dbUrl+"pdf/create_user", {
       userDetails: userDetails,
     });
     console.log("User created status", status);
@@ -108,7 +108,7 @@ function Viewer() {
        * currPage Page user left reading on
        * pdfLink Path of pdf in fb storage
        */
-      const fetchedState = await PostData("http://localhost:8000/pdf/resume", {
+      const fetchedState = await PostData(configVars.dbUrl+"pdf/resume", {
         email: userState.current?.email,
       });
       console.log("Fetched state", fetchedState);
@@ -147,7 +147,7 @@ function Viewer() {
         pdfLink: pdfPath.current,
         currPage: pgNum,
       };
-      const status = await PostData("http://localhost:8000/pdf/save", {
+      const status = await PostData(configVars.dbUrl+"pdf/save", {
         saveDetails: saveDetails,
       });
       console.log("Pdf Save Status", status);
@@ -302,6 +302,7 @@ function Viewer() {
 
   const removePreviousPdf = (prevFilePath) => {
     if (prevFilePath) {
+      setSaveStatus("Deleting previous pdf")
       const storageRef = storage.ref();
       const pdfRef = storageRef.child(prevFilePath);
       pdfRef.delete().then(() => {
@@ -314,6 +315,7 @@ function Viewer() {
 
   const uploadToFirebaseAndOpen = (file) => {
     if (file) {
+      setSaveStatus("Uploading new pdf");
       const storageRef = storage.ref();
       const filePath = userState.current?.email + "/" + file.name;
       pdfPath.current = filePath;
@@ -351,6 +353,7 @@ function Viewer() {
       alert("Uploads are limited to 20mb");
       return;
     }
+    setLoadingSpinner(true);
     const updatePdf = pdfPath.current.length ? true : false;
     removePreviousPdf(pdfPath.current);
     uploadToFirebaseAndOpen(file);
@@ -359,6 +362,8 @@ function Viewer() {
     } else {
       createPdfEntry();
     }
+    setPgNum(1);
+    resumePgNum.current = 1;
   };
 
   const initPdfRendering = async () => {
