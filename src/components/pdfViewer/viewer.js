@@ -27,15 +27,18 @@ function Viewer() {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const [pdfVariables, setPdfVariables] = useState({});
-  const [pgNum, setPgNum] = useState("");
+  const [pgNum, setPgNum] = useState(1);
   // specific to app state
   const [pdfLoaded, setPdfLoaded] = useState(false);
-  const [openFile, setOpenFile] = useState(null);
   const [signedIn, setSignedIn] = useState(false);
-  const [pdfState, setPdfState] = useState({});
   const [userInfo, setUserInfo] = useState({});
-  let userState = {};
-  let pdfPath = "";
+  const [saveStatus, setSaveStatus] = useState("No Status...");
+  const [loadingSpinner, setLoadingSpinner] = useState(false);
+  const lastPgNum = useRef();
+  let pdfPath = useRef();
+  let userState = useRef();
+  let resumePgNum = useRef();
+  const fileSizeLimit = 20;
 
   // The workerSrc property shall be specified.
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -51,6 +54,8 @@ function Viewer() {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.sandbox.min.js";
 
   const loadPdf = async () => {
+    setSaveStatus("Loading file");
+    setLoadingSpinner(true);
     const url = await downloadFileFromFB();
     if (url) {
       console.log("rendering url", url);
@@ -58,14 +63,12 @@ function Viewer() {
     } else {
       alert("Cant download file, Please report");
     }
-    // const resp = await PostData('http://localhost:8000/pdf', { dldUrl: url });
-    // console.log(resp)
   };
 
   const createPdfEntry = async () => {
     const pdfDetails = {
-      pdfLink: pdfPath,
-      email: userState.email,
+      pdfLink: pdfPath.current,
+      email: userState.current?.email,
     };
     const status = await PostData("http://localhost:8000/pdf/new_pdf", {
       pdfDetails: pdfDetails,
@@ -75,8 +78,8 @@ function Viewer() {
 
   const updatePdfEntry = async () => {
     const pdfDetails = {
-      pdfLink: pdfPath,
-      email: userState.email,
+      pdfLink: pdfPath.current,
+      email: userState.current?.email,
     };
     const status = await PostData(
       "http://localhost:8000/pdf/update_pdf_entry",
@@ -89,8 +92,8 @@ function Viewer() {
 
   const createOrUpdateUserRecord = async () => {
     const userDetails = {
-      email: userState.email,
-      displayName: userState.displayName,
+      email: userState.current?.email,
+      displayName: userState.current?.displayName,
     };
     const status = await PostData("http://localhost:8000/pdf/create_user", {
       userDetails: userDetails,
@@ -99,21 +102,21 @@ function Viewer() {
   };
 
   const getOpenedPdf = async () => {
-    if (userState) {
+    if (userState.current) {
       /**
        * Fetched State:
        * currPage Page user left reading on
        * pdfLink Path of pdf in fb storage
        */
       const fetchedState = await PostData("http://localhost:8000/pdf/resume", {
-        email: userState.email,
+        email: userState.current?.email,
       });
-      setPdfState(fetchedState);
       console.log("Fetched state", fetchedState);
       let resume = false;
       if (!isEmpty(fetchedState)) {
         resume = true;
-        pdfPath = fetchedState?.pdfLink;
+        pdfPath.current = fetchedState?.pdfLink;
+        resumePgNum.current = fetchedState?.currPage;
       }
       return resume;
     } else {
@@ -121,12 +124,49 @@ function Viewer() {
     }
   };
 
+  const formatDatetoTime = () => {
+    const date = new Date();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const second = date.getSeconds();
+    const prettyDate = hour + ":" + minute + ":" + second;
+    return prettyDate;
+  };
+
+  const saveOpenedPdfState = async () => {
+    if (userState.current) {
+      /**
+       * saveDetails:
+       * email
+       * pdfLink
+       * currPage
+       */
+      setSaveStatus("Saving...");
+      const saveDetails = {
+        email: userState.current?.email,
+        pdfLink: pdfPath.current,
+        currPage: pgNum,
+      };
+      const status = await PostData("http://localhost:8000/pdf/save", {
+        saveDetails: saveDetails,
+      });
+      console.log("Pdf Save Status", status);
+      const saveTime = formatDatetoTime();
+      setSaveStatus("Last saved " + saveTime);
+    } else {
+      console.log(
+        "ERROR",
+        "No User State object exists, this function should not be called cant fetch anything."
+      );
+    }
+  };
+
   /**
    * Save user variables
    * uid, email, displayName
    */
-   const saveUserState = (user) => {
-    userState = {
+  const saveUserState = (user) => {
+    userState.current = {
       id: user?.uid,
       email: user?.email,
       name: user?.displayName,
@@ -134,15 +174,36 @@ function Viewer() {
   };
 
   const handlePageInit = (SEARCH_FOR, tempStateVar) => {
-    tempStateVar.eventBus.on("pagesinit", function () {
+    tempStateVar.eventBus.on("pagesinit", () => {
       // We can use pdfViewer now, e.g. let's change default scale.
       tempStateVar.pdfViewer.currentScaleValue = "page-width";
+      tempStateVar.pdfViewer.currentPageNumber = resumePgNum.current;
       // We can try searching for things.
       if (SEARCH_FOR) {
         tempStateVar.pdfFindController.executeCommand("find", {
           query: SEARCH_FOR,
         });
       }
+    });
+  };
+
+  /**
+   * Function calls save state endpoint if user hasnt changed the page in
+   * 3 seconds
+   * Assuming user isnt constantly scrolling and can save state
+   */
+  useEffect(() => {
+    lastPgNum.current = pgNum;
+    setTimeout(() => {
+      if (lastPgNum.current === pgNum) {
+        saveOpenedPdfState();
+      }
+    }, 3000);
+  }, [pgNum]);
+
+  const handlePageChanging = (tempStateVar) => {
+    tempStateVar.eventBus.on("pagechanging", (evt) => {
+      setPgNum(evt.pageNumber);
     });
   };
 
@@ -197,6 +258,7 @@ function Viewer() {
     tempStateVar.pdfFindController = pdfFindController;
 
     handlePageInit(SEARCH_FOR, tempStateVar);
+    handlePageChanging(tempStateVar);
     // Loading document.
     const loadingTask = pdfjsLib.getDocument({
       url: rawPDFUrl,
@@ -209,12 +271,27 @@ function Viewer() {
     // all variables assigned, set tempStateVar to pdfVariables to update UI
     setPdfVariables(tempStateVar);
     setPdfLoaded(true);
+    setLoadingSpinner(false);
+  };
+
+  /**
+   * Function validates and fixes any page number that user enters
+   * @returns fixedPgNum a fixed and valid page number after formatting
+   */
+  const validateAndFixPgNum = () => {
+    const minPg = 1;
+    const maxPg = pdfVariables?.pdfDocument?.numPages;
+    if (pgNum < minPg) return minPg;
+    if (pgNum > maxPg) return maxPg;
+    return pgNum;
   };
 
   const gotoPage = ($ev) => {
     if ($ev.keyCode === 13) {
       $ev.preventDefault();
-      pdfVariables.pdfViewer.currentPageNumber = pgNum;
+      const fixedPgNum = validateAndFixPgNum();
+      pdfVariables.pdfViewer.currentPageNumber = fixedPgNum;
+      setPgNum(fixedPgNum);
     }
   };
 
@@ -238,8 +315,8 @@ function Viewer() {
   const uploadToFirebaseAndOpen = (file) => {
     if (file) {
       const storageRef = storage.ref();
-      const filePath = userState.email + "/" + file.name;
-      pdfPath = filePath;
+      const filePath = userState.current?.email + "/" + file.name;
+      pdfPath.current = filePath;
       const pdfRef = storageRef.child(filePath);
       pdfRef.put(file).then((snapshot) => {
         alert("File uploaded successfully");
@@ -250,21 +327,32 @@ function Viewer() {
 
   const downloadFileFromFB = async () => {
     const storageRef = storage.ref();
-    const url = await storageRef.child(pdfPath).getDownloadURL();
+    const url = await storageRef.child(pdfPath.current).getDownloadURL();
     return url;
+  };
+
+  const checkFreeTierSize = (bytes) => {
+    const kb = bytes / 1024;
+    const mb = kb / 1024;
+    return mb <= fileSizeLimit ? true : false;
   };
 
   const uploadAndOpenPdf = async ($ev) => {
     const file = $ev.target.files[0];
-    console.log(file);
-    return;
     // @mark IMPORTANT
-    // At the start and for free versions, user is limited to just 1 pdf
+    // At the start and for free versions, user is limited to
+    // * 1 pdf
+    // * 20mb
     // If user needs to open new pdf:
     // previous pdf should be deleted
     // Their entry in the backend should be updated
-    const updatePdf = pdfPath.length? true: false;
-    removePreviousPdf(pdfPath);
+    const sizeCheck = checkFreeTierSize(file.size);
+    if (!sizeCheck) {
+      alert("Uploads are limited to 20mb");
+      return;
+    }
+    const updatePdf = pdfPath.current.length ? true : false;
+    removePreviousPdf(pdfPath.current);
     uploadToFirebaseAndOpen(file);
     if (updatePdf) {
       updatePdfEntry();
@@ -274,6 +362,9 @@ function Viewer() {
   };
 
   const initPdfRendering = async () => {
+    if (isEmpty(userInfo)) {
+      return;
+    }
     saveUserState(userInfo);
     await createOrUpdateUserRecord();
     const resume = await getOpenedPdf();
@@ -285,22 +376,22 @@ function Viewer() {
     const provider = new firebaseRef.auth.GoogleAuthProvider();
     const authRef = await firebaseRef.auth();
     const result = await authRef.signInWithPopup(provider);
-      //@mark shift to using tokens for authentication after alpha build
-      //    var credential = result.credential;
-      // This gives you a Google Access Token. You can use it to access the Google API.
-      //    var token = credential.accessToken;
-      // The signed-in user info.
-      setUserInfo(result.user);
-      //@mark TODO implement error catching with awaits
-      // .catch((error) => {
-        //   // Handle Errors here.
-        //   var errorCode = error.code;
-        //   var errorMessage = error.message;
-        //   // The email of the user's account used.
-        //   var email = error.email;
-        //   // The firebase.auth.AuthCredential type that was used.
-        //   var credential = error.credential;
-        // });
+    //@mark shift to using tokens for authentication after alpha build
+    //    var credential = result.credential;
+    // This gives you a Google Access Token. You can use it to access the Google API.
+    //    var token = credential.accessToken;
+    // The signed-in user info.
+    setUserInfo(result.user);
+    //@mark TODO implement error catching with awaits
+    // .catch((error) => {
+    //   // Handle Errors here.
+    //   var errorCode = error.code;
+    //   var errorMessage = error.message;
+    //   // The email of the user's account used.
+    //   var email = error.email;
+    //   // The firebase.auth.AuthCredential type that was used.
+    //   var credential = error.credential;
+    // });
   };
 
   const logoutGoogle = () => {
@@ -308,7 +399,7 @@ function Viewer() {
       .auth()
       .signOut()
       .then(() => {
-        userState = {};
+        userState.current = {};
         setSignedIn(false);
       })
       .catch((error) => {
@@ -334,8 +425,8 @@ function Viewer() {
   }, []);
 
   useEffect(() => {
-    initPdfRendering()
-  },[userInfo])
+    initPdfRendering();
+  }, [userInfo]);
 
   return (
     <div>
@@ -372,6 +463,8 @@ function Viewer() {
             </div>
           ) : null}
           <div className="end-ctn">
+            <div className="saving-status">{saveStatus}</div>
+            {loadingSpinner ? <div className="loader" /> : null}
             {/* <button>Save</button> */}
             <button onClick={logoutGoogle} className="logout-btn">
               Logout
