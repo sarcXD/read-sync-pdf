@@ -2,7 +2,9 @@ import { useRef, useState, useEffect } from "react";
 import { PostData } from "../services/api.service.js"; // curly braces since no default export in file
 import "./viewer.css";
 import { storage, firebaseRef } from "../../configs/fbConfig";
-import {configVars} from "../../configs/envConfig";
+import { configVars } from "../../configs/envConfig";
+import { FaFileUpload } from "react-icons/fa";
+import { FaSignOutAlt } from "react-icons/fa";
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
 
@@ -70,7 +72,7 @@ function Viewer() {
       pdfLink: pdfPath.current,
       email: userState.current?.email,
     };
-    const status = await PostData(configVars.dbUrl+"pdf/new_pdf", {
+    const status = await PostData(configVars.dbUrl + "pdf/new_pdf", {
       pdfDetails: pdfDetails,
     });
     console.log("Pdf Entry Status", status);
@@ -81,12 +83,9 @@ function Viewer() {
       pdfLink: pdfPath.current,
       email: userState.current?.email,
     };
-    const status = await PostData(
-      configVars.dbUrl+"pdf/update_pdf_entry",
-      {
-        pdfDetails: pdfDetails,
-      }
-    );
+    const status = await PostData(configVars.dbUrl + "pdf/update_pdf_entry", {
+      pdfDetails: pdfDetails,
+    });
     console.log("Pdf Update Entry Status", status);
   };
 
@@ -95,7 +94,7 @@ function Viewer() {
       email: userState.current?.email,
       displayName: userState.current?.displayName,
     };
-    const status = await PostData(configVars.dbUrl+"pdf/create_user", {
+    const status = await PostData(configVars.dbUrl + "pdf/create_user", {
       userDetails: userDetails,
     });
     console.log("User created status", status);
@@ -108,7 +107,7 @@ function Viewer() {
        * currPage Page user left reading on
        * pdfLink Path of pdf in fb storage
        */
-      const fetchedState = await PostData(configVars.dbUrl+"pdf/resume", {
+      const fetchedState = await PostData(configVars.dbUrl + "pdf/resume", {
         email: userState.current?.email,
       });
       console.log("Fetched state", fetchedState);
@@ -147,7 +146,7 @@ function Viewer() {
         pdfLink: pdfPath.current,
         currPage: pgNum,
       };
-      const status = await PostData(configVars.dbUrl+"pdf/save", {
+      const status = await PostData(configVars.dbUrl + "pdf/save", {
         saveDetails: saveDetails,
       });
       console.log("Pdf Save Status", status);
@@ -302,7 +301,7 @@ function Viewer() {
 
   const removePreviousPdf = (prevFilePath) => {
     if (prevFilePath) {
-      setSaveStatus("Deleting previous pdf")
+      setSaveStatus("Deleting previous pdf");
       const storageRef = storage.ref();
       const pdfRef = storageRef.child(prevFilePath);
       pdfRef.delete().then(() => {
@@ -354,7 +353,7 @@ function Viewer() {
       return;
     }
     setLoadingSpinner(true);
-    const updatePdf = pdfPath.current.length ? true : false;
+    const updatePdf = pdfPath.current?.length ? true : false;
     removePreviousPdf(pdfPath.current);
     uploadToFirebaseAndOpen(file);
     if (updatePdf) {
@@ -447,9 +446,13 @@ function Viewer() {
       {signedIn ? (
         <div className="toolbar-ctn">
           <div className="start-ctn">
+            <label for="file">
+              <FaFileUpload className="upload-logo" />
+            </label>
             <input
               className="upload-btn"
               type="file"
+              id="file"
               accept=".pdf"
               onChange={uploadAndOpenPdf}
             />
@@ -470,10 +473,7 @@ function Viewer() {
           <div className="end-ctn">
             <div className="saving-status">{saveStatus}</div>
             {loadingSpinner ? <div className="loader" /> : null}
-            {/* <button>Save</button> */}
-            <button onClick={logoutGoogle} className="logout-btn">
-              Logout
-            </button>
+            <FaSignOutAlt onClick={logoutGoogle} className="logout-btn" label="Logout"/>
           </div>
         </div>
       ) : (
