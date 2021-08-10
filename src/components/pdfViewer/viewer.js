@@ -5,6 +5,8 @@ import { storage, firebaseRef } from "../../configs/fbConfig";
 import { configVars } from "../../configs/envConfig";
 import { FaFileUpload } from "react-icons/fa";
 import { FaSignOutAlt } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa";
+import { FaMinus } from "react-icons/fa";
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
 
@@ -41,6 +43,9 @@ function Viewer() {
   let userState = useRef();
   let resumePgNum = useRef();
   const fileSizeLimit = 20;
+  const DEFAULT_SCALE_DELTA = 1.1;
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 10.0;
 
   // The workerSrc property shall be specified.
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -347,22 +352,24 @@ function Viewer() {
     // If user needs to open new pdf:
     // previous pdf should be deleted
     // Their entry in the backend should be updated
-    const sizeCheck = checkFreeTierSize(file.size);
-    if (!sizeCheck) {
-      alert("Uploads are limited to 20mb");
-      return;
+    if(file) {
+      const sizeCheck = checkFreeTierSize(file.size);
+      if (!sizeCheck) {
+        alert("Uploads are limited to 20mb");
+        return;
+      }
+      setLoadingSpinner(true);
+      const updatePdf = pdfPath.current?.length ? true : false;
+      removePreviousPdf(pdfPath.current);
+      uploadToFirebaseAndOpen(file);
+      if (updatePdf) {
+        updatePdfEntry();
+      } else {
+        createPdfEntry();
+      }
+      resumePgNum.current = 1;
+      setPgNum(1);
     }
-    setLoadingSpinner(true);
-    const updatePdf = pdfPath.current?.length ? true : false;
-    removePreviousPdf(pdfPath.current);
-    uploadToFirebaseAndOpen(file);
-    if (updatePdf) {
-      updatePdfEntry();
-    } else {
-      createPdfEntry();
-    }
-    setPgNum(1);
-    resumePgNum.current = 1;
   };
 
   const initPdfRendering = async () => {
@@ -432,6 +439,22 @@ function Viewer() {
     initPdfRendering();
   }, [userInfo]);
 
+  const zoomIn = () => {
+    let newScale = pdfVariables.pdfViewer.currentScale;
+    newScale = (newScale * DEFAULT_SCALE_DELTA).toFixed(2);
+    newScale = Math.ceil(newScale * 10) / 10;
+    newScale = Math.min(MAX_SCALE, newScale);
+    pdfVariables.pdfViewer.currentScaleValue = newScale;
+  };
+
+  const zoomOut = () => {
+    let newScale = pdfVariables.pdfViewer.currentScale;
+    newScale = (newScale / DEFAULT_SCALE_DELTA).toFixed(2);
+    newScale = Math.floor(newScale * 10) / 10;
+    newScale = Math.max(MIN_SCALE, newScale);
+    pdfVariables.pdfViewer.currentScaleValue = newScale;
+  };
+
   return (
     <div>
       {signedIn ? (
@@ -459,21 +482,33 @@ function Viewer() {
           </div>
           {pdfLoaded ? (
             <div className="mid-ctn">
-              <input
-                type="number"
-                value={pgNum}
-                onChange={setPage}
-                onKeyDown={gotoPage}
-                className="toolbar-input"
-              />
-              <div className="pg-text">of</div>
-              <div id="total-pages">{pdfVariables?.pdfDocument?.numPages}</div>
+              <div className="ctn-bloc">
+                <input
+                  type="number"
+                  value={pgNum}
+                  onChange={setPage}
+                  onKeyDown={gotoPage}
+                  className="toolbar-input"
+                />
+                <div className="pg-text">of</div>
+                <div id="total-pages">
+                  {pdfVariables?.pdfDocument?.numPages}
+                </div>
+              </div>
+              <div className="ctn-bloc">
+                <FaMinus onClick={zoomOut} className="zoom-logo"/>
+                <FaPlus onClick={zoomIn} className="zoom-logo"/>
+              </div>
             </div>
           ) : null}
           <div className="end-ctn">
             <div className="saving-status">{saveStatus}</div>
             {loadingSpinner ? <div className="loader" /> : null}
-            <FaSignOutAlt onClick={logoutGoogle} className="logout-btn" label="Logout"/>
+            <FaSignOutAlt
+              onClick={logoutGoogle}
+              className="logout-btn"
+              label="Logout"
+            />
           </div>
         </div>
       ) : (
