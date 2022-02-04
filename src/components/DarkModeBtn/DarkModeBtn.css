@@ -1,16 +1,19 @@
 :root {
   --dark-color: #121212;
   --light-color: white;
+  --l1-opacity: 0.75;
 }
 
 html {
   color: var(--dark-color);
   --bgd-color: var(--light-color);
+  --theme-opacity: 1;
 }
 
 html[data-theme="dark"] {
   color: var(--light-color);
   --bgd-color: var(--dark-color);
+  --theme-opacity: var(--l1-opacity);
 }
 
 ul {
@@ -19,9 +22,11 @@ ul {
   flex-direction: row;
   align-items: center;
   padding: 2px 4px;
+  margin: 2px;
   border: 2px solid;
   border-radius: 5px;
   background-color: var(--bgd-color);
+  opacity: var(--theme-opacity);
   cursor: pointer;
 }
 
@@ -38,9 +43,6 @@ ul {
 }
 
 @media (max-width: 800px) {
-  ul {
-    margin: 2px;
-  }
   li {
     display: none;
   }
