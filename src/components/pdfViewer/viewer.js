@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react";
+import DarkModeBtn from "../DarkModeBtn/DarkModeBtn.js";
 import { PostData } from "../services/api.service.js"; // curly braces since no default export in file
 import "./viewer.css";
 import { storage, firebaseRef } from "../../configs/fbConfig";
@@ -9,13 +10,6 @@ import { FaPlus } from "react-icons/fa";
 import { FaMinus } from "react-icons/fa";
 const pdfjsLib = window.pdfjsLib;
 const pdfjsViewer = window.pdfjsViewer;
-
-let containerStyle = {
-  overflow: "auto",
-  position: "absolute",
-  width: "100%",
-  height: "100%",
-};
 
 function isEmpty(obj) {
   for (let key in obj) {
@@ -352,7 +346,7 @@ function Viewer() {
     // If user needs to open new pdf:
     // previous pdf should be deleted
     // Their entry in the backend should be updated
-    if(file) {
+    if (file) {
       const sizeCheck = checkFreeTierSize(file.size);
       if (!sizeCheck) {
         alert("Uploads are limited to 20mb");
@@ -458,11 +452,7 @@ function Viewer() {
   return (
     <div>
       {signedIn ? (
-        <div
-          id="#viewerContainer"
-          ref={containerRef}
-          style={{ ...containerStyle }}
-        >
+        <div id="viewerContainer" ref={containerRef}>
           <div id="#viewer" className="pdfViewer" ref={viewerRef} />
         </div>
       ) : null}
@@ -496,12 +486,13 @@ function Viewer() {
                 </div>
               </div>
               <div className="ctn-bloc">
-                <FaMinus onClick={zoomOut} className="zoom-logo"/>
-                <FaPlus onClick={zoomIn} className="zoom-logo"/>
+                <FaMinus onClick={zoomOut} className="zoom-logo" />
+                <FaPlus onClick={zoomIn} className="zoom-logo" />
               </div>
             </div>
           ) : null}
           <div className="end-ctn">
+            <DarkModeBtn />
             <div className="saving-status">{saveStatus}</div>
             {loadingSpinner ? <div className="loader" /> : null}
             <FaSignOutAlt

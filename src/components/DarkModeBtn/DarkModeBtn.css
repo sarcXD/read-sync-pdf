@@ -1,0 +1,52 @@
+:root {
+  --dark-color: #121212;
+  --light-color: white;
+}
+
+html {
+  color: var(--dark-color);
+  --bgd-color: var(--light-color);
+}
+
+html[data-theme="dark"] {
+  color: var(--light-color);
+  --bgd-color: var(--dark-color);
+}
+
+ul {
+  list-style-type: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 2px 4px;
+  border: 2px solid;
+  border-radius: 5px;
+  background-color: var(--bgd-color);
+  cursor: pointer;
+}
+
+.theme-ctn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.theme-btn {
+  margin: 1px;
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 800px) {
+  ul {
+    margin: 2px;
+  }
+  li {
+    display: none;
+  }
+  .theme-ctn {
+    display: flex;
+    width: 20px;
+    height: 20px;
+  }
+}
