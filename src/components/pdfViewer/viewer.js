@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import DarkModeBtn from "../DarkModeBtn/DarkModeBtn.js";
+import Dictionary from "../Dictionary/Dictionary.js";
 import { PostData } from "../services/api.service.js"; // curly braces since no default export in file
 import "./viewer.css";
 import { storage, firebaseRef } from "../../configs/fbConfig";
@@ -473,6 +474,7 @@ function Viewer() {
           {pdfLoaded ? (
             <div className="mid-ctn">
               <div className="ctn-bloc">
+                <Dictionary />
                 <input
                   type="number"
                   value={pgNum}
