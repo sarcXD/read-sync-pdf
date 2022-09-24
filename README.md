@@ -4,7 +4,7 @@ My initial intention or thought behind building this was that this could potenti
 
 I had learnt alot building this, especially how to work with pdf.js and building a pdf reader and what not.  
 
-demo: https://readsyncpdf.web.app/
+demo: https://readsyncpdf.web.app/  
 This is the front-end for the project.  
 I have not put in work to make this cloning friendly or anything. Contact me if you require assistance, maybe create an issue.  
 ## Instruction
@@ -17,4 +17,4 @@ You need to setup firebase and perhaps your own provider. I don't think you can 
 
 ## Contributions  
 Contact me either here by creating an issue or talhaaamir_AT_gmail_DOT_com
-I honestly don't foresee me working on this soon. There is a lot I can do, but primarily it's that no one uses it, so I can practice and improve my dev skills elsewhere. But a lot can be added and that I am capable of adding, since I have been professionally been working on a pdf app. It's just that right now there is no reason to further develop this.
+I honestly don't foresee myself working on this soon. There is a lot I can do, but primarily it's that no one uses it, so I can practice and improve my dev skills elsewhere. But a lot can be added and that I am capable of adding, mainly because I have professionally been working on a pdf app. It's just that right now there is no reason to further develop this.
